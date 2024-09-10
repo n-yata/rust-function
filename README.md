@@ -6,6 +6,10 @@
 
 - scoop install openssl でインストール
 
+[Rust に入門する〜２日目 reqwest で GET 通信をする〜](https://qiita.com/nekotouma0114/items/3f7f384716acb8b7769b)
+
+- reqwest で openssl を使用しない
+
 ### コマンド
 
 cargo lambda build --release --output-format zip

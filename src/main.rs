@@ -3,54 +3,70 @@ use std::collections::HashMap;
 use lambda_runtime::{run, service_fn, tracing, Error, LambdaEvent};
 
 use reqwest::{
-    header::{HeaderMap, HeaderValue, CONTENT_TYPE},
+    header::{HeaderMap, HeaderName, HeaderValue},
     Client,
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
-struct Request {
-    zipcode: String,
+struct FunctRequest {
+    #[serde(default)]
+    url: String,
+    #[serde(default)]
+    method: String,
+    #[serde(default)]
+    headers: HashMap<String, String>,
+    #[serde(default)]
+    body: String,
 }
 
 #[derive(Serialize)]
-struct Response {
+struct FuncResponse {
     status: String,
     text: String,
 }
 
-/// This is the main body for the function.
-/// Write your code inside it.
-/// There are some code example in the following URLs:
-/// - https://github.com/awslabs/aws-lambda-rust-runtime/tree/main/examples
-/// - https://github.com/aws-samples/serverless-rust-demo/
-async fn function_handler(event: LambdaEvent<Request>) -> Result<Response, Error> {
-    // Extract some useful info from the request
-    let zipcode = event.payload.zipcode;
-
+async fn function_handler(event: LambdaEvent<FunctRequest>) -> Result<FuncResponse, Error> {
     let client = Client::new();
 
-    let mut headers = HeaderMap::new();
-    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    let mut req_headers = HeaderMap::new();
+    for (k, v) in event.payload.headers.iter() {
+        req_headers.insert(
+            HeaderName::from_bytes(k.as_bytes()).unwrap(),
+            HeaderValue::from_str(v).unwrap(),
+        );
+    }
 
-    let mut params = HashMap::new();
-    params.insert("zipcode", zipcode);
+    let response = match event.payload.method.as_str() {
+        "POST" => {
+            client
+                .post(&event.payload.url)
+                .headers(req_headers)
+                .body(event.payload.body.clone())
+                .send()
+                .await?
+        }
+        "GET" => {
+            client
+                .get(&event.payload.url)
+                .headers(req_headers)
+                .send()
+                .await?
+        }
+        _ => {
+            client
+                .get(&event.payload.url)
+                .headers(req_headers)
+                .send()
+                .await?
+        }
+    };
 
-    // GETリクエストを送信
-    let response: reqwest::Response = client
-        .get("https://zipcloud.ibsnet.co.jp/api/search")
-        .headers(headers)
-        .query(&params)
-        .send()
-        .await?;
-
-    // Prepare the response
-    let resp = Response {
+    let resp = FuncResponse {
         status: response.status().to_string(),
         text: response.text().await?,
     };
 
-    // Return `Response` (it will be serialized to JSON automatically by the runtime)
     Ok(resp)
 }
 
